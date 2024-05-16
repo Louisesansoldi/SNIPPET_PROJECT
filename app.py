@@ -159,7 +159,36 @@ def update_posts(id):
     return jsonify({'message': 'Mise à jour du snippet réussie'}), 200
 
 
+# _________________________ DELETE MY SNIPPET _________________________ 
 
+@app.route('/api/posts/<int:id>', methods=['DELETE'])
+@jwt_required() # l'utilisateur est authentifié
+def delete_posts(id):
+    data = request.get_json()
+    email = get_jwt_identity() 
+
+    # Récupérer l'ID de l'utilisateur à partir de son adresse e-mail
+    cursor = mysql.connection.cursor()
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user_id = cursor.fetchone()
+
+    # Vérifier si un ID d'utilisateur a été trouvé
+    if not user_id:
+        abort(404, description="Utilisateur introuvable")
+
+    # Vérifier si l'utilisateur connecté est bien celui qui a créé le post dans la collection associée
+    cursor.execute("SELECT sp.id FROM snippetPosts sp JOIN collections c ON sp.id_collection = c.id WHERE sp.id = %s AND c.id_users = %s", (id, user_id[0]))
+    post = cursor.fetchone()
+
+    # Vérifier si un post a été trouvé pour cet ID et cet utilisateur
+    if not post:
+        abort(403, description="Vous n'êtes pas autorisé à mettre à jour ce post")
+
+    # Mettre à jour le post
+    cursor.execute("DELETE FROM snippetPosts WHERE id = %s", (id,))
+    mysql.connection.commit()
+
+    return jsonify({'message': 'Snippet deleted'}), 200
 
 # _________________________ VIEW SNIPPETS OF 1 COLLECTION _________________________ 
 
