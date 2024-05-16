@@ -169,22 +169,25 @@ def posts():
     # Ajouter les mots-clés à la table `keyWords` s'ils n'existent pas déjà
     if keywords:
         for keywords_item in keyword_list:
-            # Vérifier si le mot-clé existe déjà dans la base de données
+        # Vérifier si le mot-clé existe déjà dans la base de données
             cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
-            existing_keyword = cursor.fetchone()
+        existing_keyword = cursor.fetchone()
 
-            # Si le mot-clé n'existe pas déjà, l'insérer dans la base de données 
-            if not existing_keyword:
-                cursor.execute("INSERT INTO keyWords (keyWord) VALUES (%s)", (keywords_item,))
-                mysql.connection.commit()
+        # Si le mot-clé n'existe pas déjà, l'insérer dans la base de données 
+        if not existing_keyword:
+            cursor.execute("INSERT INTO keyWords (keyWord) VALUES (%s)", (keywords_item,))
+            mysql.connection.commit()
 
-                # Récupérer l'ID du mot-clé
-                cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
-                keyword_id = cursor.fetchone()[0]
+            # Récupérer l'ID du mot-clé
+            cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
+            keyword_id = cursor.fetchone()[0]
+        else:
+            # Si le mot-clé existe déjà, récupérer son ID
+            keyword_id = existing_keyword[0]
 
-                # Associer le mot-clé au post dans la table postKeyWords
-                cursor.execute("INSERT INTO postKeyWords (id_keyWords, id_snippetPosts) VALUES (%s, %s)", (keyword_id, post_id))
-                mysql.connection.commit()
+        # Associer le mot-clé au post dans la table postKeyWords
+        cursor.execute("INSERT INTO postKeyWords (id_keyWords, id_snippetPosts) VALUES (%s, %s)", (keyword_id, post_id))
+        mysql.connection.commit()
 
     return jsonify({'message': 'Posted !'}), 201
 
@@ -303,7 +306,7 @@ def get_posts(id_collection):
                 'imageUrl': post[4],
                 'language': post[5],
                 'snippet': post[6],
-                'id_collection': post[7]  # Assuming user_id is the 7th column in your table
+                'id_collection': post[7]
             }
             posts_data.append(post_data)
 
@@ -313,8 +316,39 @@ def get_posts(id_collection):
 
 
 
+# _________________________ FILTER BY KEYWORDS _________________________ 
 
+@app.route('/api/posts/filter/<string:keyword>', methods=['GET'])
+def filter_keyWords(keyword):
+    cursor = mysql.connection.cursor()
+    # Sélectionner les ID des snippets associés au mot-clé donné
+    cursor.execute("SELECT id_snippetPosts FROM postKeyWords WHERE id_keyWords IN (SELECT id FROM keyWords WHERE keyWord = %s)", (keyword,))
+    snippet_ids = [row[0] for row in cursor.fetchall()]
 
+    # Sélectionner les snippets correspondant aux ID obtenus
+    cursor.execute("SELECT * FROM snippetPosts WHERE id IN (%s)" % ','.join(map(str, snippet_ids)))
+    keyword_posts = cursor.fetchall()
+    cursor.close()
+
+    if keyword_posts:
+        # Format the posts data into a JSON response
+        posts_data = []
+        for post in keyword_posts:
+            post_data = {
+                'id': post[0],
+                'title': post[1],
+                'siteLink': post[2],
+                'author': post[3],
+                'imageUrl': post[4],
+                'language': post[5],
+                'snippet': post[6],
+                'id_collection': post[7]
+            }
+            posts_data.append(post_data)
+
+        return jsonify({'keyword': keyword, 'posts': posts_data}), 200
+    else:
+        return jsonify({'message': 'No posts found for keyword {}'.format(keyword)}), 404
 
 
 if __name__ == '__main__':
