@@ -155,6 +155,8 @@ def update_posts(id):
     data = request.get_json()
     email = get_jwt_identity() 
 
+    new_keywords = data.get('keyWords', [])
+
     # Récupérer l'ID de l'utilisateur à partir de son adresse e-mail
     cursor = mysql.connection.cursor()
     cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
@@ -176,6 +178,31 @@ def update_posts(id):
     cursor.execute("UPDATE snippetPosts SET title = %s, siteLink = %s, author = %s, imageUrl = %s, language = %s, snippet = %s WHERE id = %s", 
                    (data['title'], data['siteLink'], data['author'], data['imageUrl'], data['language'], data['snippet'], id))
     mysql.connection.commit()
+
+
+# Traiter les nouveaux mots-clés de la même manière que pour la création de snippet
+    for keyword in new_keywords:
+        keyword_list = new_keywords.split(', ')
+    for keywords_item in keyword_list:
+        keywords_item = keywords_item.strip()
+
+        # Vérifier si le mot-clé existe déjà dans la base de données
+        cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
+        existing_keyword = cursor.fetchone()
+
+        # Si le mot-clé n'existe pas déjà, l'insérer dans la base de données
+        if not existing_keyword:
+            cursor.execute("INSERT INTO keyWords (keyWord) VALUES (%s)", (keywords_item,))
+            mysql.connection.commit()
+
+            # Récupérer l'ID du mot-clé
+            cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
+            keyword_id = cursor.fetchone()[0]
+
+            # Associer le mot-clé au snippet dans la table postKeyWords
+            cursor.execute("INSERT INTO postKeyWords (id_keyWords, id_snippetPosts) VALUES (%s, %s)", (keyword_id, id))
+            mysql.connection.commit()
+
 
     return jsonify({'message': 'Mise à jour du snippet réussie'}), 200
 
