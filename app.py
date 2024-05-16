@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from cloudinary.uploader import upload
+import re
 
 load_dotenv()
 
@@ -94,37 +95,57 @@ def posts():
     data = request.get_json()
     email = get_jwt_identity() # Récupérer l'adresse e-mail de l'utilisateur authentifié
 
-
-# Récupérer l'ID de la collection de l'utilisateur connecté
+    # Récupérer l'ID de la collection de l'utilisateur connecté
     cursor = mysql.connection.cursor()
     cursor.execute("SELECT id FROM collections WHERE id_users = (SELECT id FROM users WHERE email = %s)", (email,))
     id_collection = cursor.fetchone()[0]
 
-    # cursor = mysql.connection.cursor()
-    # # Sélectionner l'ID de l'utilisateur à partir de son adresse e-mail
-    # cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
-    # id_users = cursor.fetchone()[0]  # Récupérer l'ID de l'utilisateur
-    # cursor.close()
-
-    # cursor = mysql.connection.cursor()
-    # cursor.execute("SELECT id FROM collections WHERE id_users = %s", (id_users,))
-    # id_collection = cursor.fetchone()[0]  # Récupérer l'ID de la collection 
-    # cursor.close()
-
+    # INSÉRER LES INFOS DANS LA DATABASE
     title = data['title']
     siteLink = data['siteLink']
     author = data['author']
     imageUrl = data['imageUrl']
     language = data['language']
     snippet = data['snippet']
-    
-    print("Logged in as:", email)
+    keywords = data.get('keyWords')
 
-    cursor = mysql.connection.cursor()
+    # Insérer le post dans la table `snippetPosts`
     cursor.execute("INSERT INTO snippetPosts (title, siteLink, author, imageUrl, language, snippet, id_collection) VALUES (%s, %s, %s, %s, %s, %s, %s)", (title, siteLink, author, imageUrl, language, snippet, id_collection))
     mysql.connection.commit()
 
+    # Récupérer l'ID du post inséré
+    post_id = cursor.lastrowid
+
+
+    # Ajouter les mots-clés à la table `keyWords` s'ils n'existent pas déjà
+    for keyword in keywords:
+    # Séparer les mots-clés par virgule et les nettoyer
+        keyword_list = keywords.split(', ')
+    for keywords_item in keyword_list:
+        keywords_item = keywords_item.strip()
+        print(keywords_item)
+
+        # Vérifier si le mot-clé existe déjà dans la base de données
+        cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
+        existing_keyword = cursor.fetchone()
+
+        # Si le mot-clé n'existe pas déjà, l'insérer dans la base de données 
+        if not existing_keyword:
+            cursor.execute("INSERT INTO keyWords (keyWord) VALUES (%s)", (keywords_item,))
+            
+            mysql.connection.commit()
+            
+            # Récupérer l'ID du mot-clé (OKKK)
+            cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
+            keyword_id = cursor.fetchone()[0]
+
+            # Associer le mot-clé au post dans la table postKeyWords (OKKK)
+            cursor.execute("INSERT INTO postKeyWords (id_keyWords, id_snippetPosts) VALUES (%s, %s)", (keyword_id, post_id))
+            mysql.connection.commit()
+
     return jsonify({'message': 'Posted !'}), 201
+
+
 
 # _________________________ UPDATE MY SNIPPET _________________________ 
 

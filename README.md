@@ -1,2 +1,4 @@
 # SNIPPET_PROJECT
-Website for snippets
+Website for snippets collections
+
+
