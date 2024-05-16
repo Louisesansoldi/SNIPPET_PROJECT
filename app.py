@@ -5,7 +5,20 @@ import os
 from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from cloudinary.uploader import upload
-import re
+from flask_cors import CORS, cross_origin
+import cloudinary
+import cloudinary.api
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
+
+# Configuration       
+cloudinary.config( 
+    cloud_name = "ddw3sbubm", 
+    api_key = "442925864536122", 
+    api_secret = "ubF2Szdro5MDyqU2EaAO8GJZjv0",
+    secure=True
+)
+
 
 load_dotenv()
 
@@ -21,12 +34,28 @@ app.config['JWT_HEADER_TYPE'] = 'Bearer'
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET')
 
 
-
 jwt = JWTManager(app)
 
 mysql = MySQL()
 mysql.init_app(app)
+CORS(app)
 
+
+# _________________________ UPLOAD IMAGES _________________________ 
+
+@app.route("/api/upload", methods=['POST'])
+@cross_origin()
+def upload_file():
+    app.logger.info('in upload route')
+
+    upload_result = None
+    if request.method == 'POST':
+        file_to_upload = request.files['file']
+        app.logger.info('%s file_to_upload', file_to_upload)
+        if file_to_upload:
+            upload_result = upload(file_to_upload)
+            app.logger.info(upload_result)
+            return jsonify(upload_result)
 
 # _________________________ TEST _________________________ 
 @app.route("/")
@@ -63,6 +92,8 @@ def register():
 # _________________________ LOGIN _________________________ 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
+
+    
     
     data = request.get_json()
     email = data['email']
@@ -86,6 +117,7 @@ def login():
     return jsonify({'token': token}), 200
 
 
+    
 # _________________________ ADD SNIPPET TO THE COLLECTION (POST) _________________________ 
 
 
@@ -175,8 +207,7 @@ def update_posts(id):
         abort(403, description="Vous n'êtes pas autorisé à mettre à jour ce post")
 
     # Mettre à jour le post
-    cursor.execute("UPDATE snippetPosts SET title = %s, siteLink = %s, author = %s, imageUrl = %s, language = %s, snippet = %s WHERE id = %s", 
-                   (data['title'], data['siteLink'], data['author'], data['imageUrl'], data['language'], data['snippet'], id))
+    cursor.execute("UPDATE snippetPosts SET title = %s, siteLink = %s, author = %s, imageUrl = %s, language = %s, snippet = %s WHERE id = %s", (data['title'], data['siteLink'], data['author'], data['imageUrl'], data['language'], data['snippet'], id))
     mysql.connection.commit()
 
 
