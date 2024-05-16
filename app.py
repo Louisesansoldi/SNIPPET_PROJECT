@@ -92,9 +92,6 @@ def register():
 # _________________________ LOGIN _________________________ 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-
-    
-    
     data = request.get_json()
     email = data['email']
     password = data['password']
@@ -124,22 +121,34 @@ def login():
 @app.route('/api/posts', methods=['POST'])
 @jwt_required() # l'utilisateur est authentifié
 def posts():
-    data = request.get_json()
-    email = get_jwt_identity() # Récupérer l'adresse e-mail de l'utilisateur authentifié
+    # Récupérer l'adresse e-mail de l'utilisateur authentifié
+    email = get_jwt_identity()
+
+    # Extraire les données du formulaire
+    title = request.form['title']
+    siteLink = request.form['siteLink']
+    author = request.form['author']
+    language = request.form['language']
+    snippet = request.form['snippet']
+    
+
+    # Extraire le fichier image téléchargé de la requête
+    file_to_upload = request.files['file']
+
+    # Vérifier si un fichier a été téléchargé
+    if file_to_upload:
+        # Upload de l'image sur Cloudinary
+        upload_result = upload(file_to_upload)
+        # Récupérer l'URL de l'image téléchargée depuis le résultat de l'upload
+        imageUrl = upload_result['secure_url']
+    else:
+        # Si aucun fichier n'a été téléchargé, utiliser une URL par défaut ou lever une erreur selon vos besoins
+        imageUrl = "oops"
 
     # Récupérer l'ID de la collection de l'utilisateur connecté
     cursor = mysql.connection.cursor()
     cursor.execute("SELECT id FROM collections WHERE id_users = (SELECT id FROM users WHERE email = %s)", (email,))
     id_collection = cursor.fetchone()[0]
-
-    # INSÉRER LES INFOS DANS LA DATABASE
-    title = data['title']
-    siteLink = data['siteLink']
-    author = data['author']
-    imageUrl = data['imageUrl']
-    language = data['language']
-    snippet = data['snippet']
-    keywords = data.get('keyWords')
 
     # Insérer le post dans la table `snippetPosts`
     cursor.execute("INSERT INTO snippetPosts (title, siteLink, author, imageUrl, language, snippet, id_collection) VALUES (%s, %s, %s, %s, %s, %s, %s)", (title, siteLink, author, imageUrl, language, snippet, id_collection))
@@ -148,34 +157,37 @@ def posts():
     # Récupérer l'ID du post inséré
     post_id = cursor.lastrowid
 
+    # Récupérer les mots-clés s'ils existent
+    keywords = request.form.get('keyWords')
+    print(keywords)
+    if keywords:
+        # Séparer les mots-clés par virgule et les nettoyer
+        keyword_list = keywords.split(',')
+        keyword_list = [keyword.strip() for keyword in keyword_list]
+        
 
     # Ajouter les mots-clés à la table `keyWords` s'ils n'existent pas déjà
-    for keyword in keywords:
-    # Séparer les mots-clés par virgule et les nettoyer
-        keyword_list = keywords.split(', ')
-    for keywords_item in keyword_list:
-        keywords_item = keywords_item.strip()
-        print(keywords_item)
-
-        # Vérifier si le mot-clé existe déjà dans la base de données
-        cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
-        existing_keyword = cursor.fetchone()
-
-        # Si le mot-clé n'existe pas déjà, l'insérer dans la base de données 
-        if not existing_keyword:
-            cursor.execute("INSERT INTO keyWords (keyWord) VALUES (%s)", (keywords_item,))
-            
-            mysql.connection.commit()
-            
-            # Récupérer l'ID du mot-clé (OKKK)
+    if keywords:
+        for keywords_item in keyword_list:
+            # Vérifier si le mot-clé existe déjà dans la base de données
             cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
-            keyword_id = cursor.fetchone()[0]
+            existing_keyword = cursor.fetchone()
 
-            # Associer le mot-clé au post dans la table postKeyWords (OKKK)
-            cursor.execute("INSERT INTO postKeyWords (id_keyWords, id_snippetPosts) VALUES (%s, %s)", (keyword_id, post_id))
-            mysql.connection.commit()
+            # Si le mot-clé n'existe pas déjà, l'insérer dans la base de données 
+            if not existing_keyword:
+                cursor.execute("INSERT INTO keyWords (keyWord) VALUES (%s)", (keywords_item,))
+                mysql.connection.commit()
+
+                # Récupérer l'ID du mot-clé
+                cursor.execute("SELECT id FROM keyWords WHERE keyWord = %s", (keywords_item,))
+                keyword_id = cursor.fetchone()[0]
+
+                # Associer le mot-clé au post dans la table postKeyWords
+                cursor.execute("INSERT INTO postKeyWords (id_keyWords, id_snippetPosts) VALUES (%s, %s)", (keyword_id, post_id))
+                mysql.connection.commit()
 
     return jsonify({'message': 'Posted !'}), 201
+
 
 
 
