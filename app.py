@@ -268,9 +268,8 @@ def update_posts(id):
 # _________________________ DELETE MY SNIPPET _________________________ 
 
 @app.route('/api/posts/<int:id>', methods=['DELETE'])
-@jwt_required() # l'utilisateur est authentifié
+@jwt_required()  # l'utilisateur est authentifié
 def delete_posts(id):
-    data = request.get_json()
     email = get_jwt_identity() 
 
     # Récupérer l'ID de l'utilisateur à partir de son adresse e-mail
@@ -288,13 +287,22 @@ def delete_posts(id):
 
     # Vérifier si un post a été trouvé pour cet ID et cet utilisateur
     if not post:
-        abort(403, description="Vous n'êtes pas autorisé à mettre à jour ce post")
+        abort(403, description="Vous n'êtes pas autorisé à supprimer ce post")
 
-    # Mettre à jour le post
-    cursor.execute("DELETE FROM snippetPosts WHERE id = %s", (id,))
-    mysql.connection.commit()
-
-    return jsonify({'message': 'Snippet deleted'}), 200
+    try:
+        # Supprimer le post de la table snippetPosts
+        cursor.execute("DELETE FROM snippetPosts WHERE id = %s", (id,))
+        
+        # Commit la transaction
+        mysql.connection.commit()
+        
+        return jsonify({'message': 'Post supprimé avec succès'}), 200
+    except Exception as e:
+        # Rollback en cas d'erreur
+        mysql.connection.rollback()
+        abort(500, description=str(e))
+    finally:
+        cursor.close()
 
 # _________________________ VIEW SNIPPETS OF 1 COLLECTION _________________________ 
 
