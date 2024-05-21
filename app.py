@@ -192,8 +192,6 @@ def posts():
     return jsonify({'message': 'Posted !'}), 201
 
 
-
-
 # _________________________ UPDATE MY SNIPPET _________________________ 
 
 @app.route('/api/posts/<int:id>', methods=['PUT'])
